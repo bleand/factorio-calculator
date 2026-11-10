@@ -5,6 +5,7 @@
 //   node tools/update-data.mjs --force      rebuild even if the version is unchanged
 //   node tools/update-data.mjs --version 2.1.24
 //   node tools/update-data.mjs --channel experimental
+//   node tools/update-data.mjs --factorio "D:/Games/Factorio"   (or FACTORIO_PATH) for icons and names
 //
 // Source of truth: https://github.com/wube/factorio-data (tagged per release).
 // Exit code 0 on success; prints "updated=true|false" for CI.
@@ -14,10 +15,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dumpRaw, MOD_SETS } from './extract/dump-raw.mjs';
 import { buildDataset } from './extract/build-dataset.mjs';
+import { findInstall, iconResolver, installVersion, readNames } from './extract/assets.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = path.join(ROOT, 'site', 'data');
 const CACHE_DIR = path.join(ROOT, '.cache', 'factorio-data');
+const ICONS_DIR = path.join(ROOT, 'site', 'icons');
+const NAMES_FILE = path.join(ROOT, 'tools', 'extract', 'names.json');
 const REPO = 'https://github.com/wube/factorio-data.git';
 const RELEASES = 'https://factorio.com/api/latest-releases';
 
@@ -59,11 +63,24 @@ async function main() {
   console.log(`Fetching Factorio ${version} prototype data...`);
   checkout(version);
 
+  // Icons and names come from a local Factorio installation when there is one;
+  // otherwise the copies committed to the repository are reused.
+  const install = findInstall(option('factorio'));
+  let names = fs.existsSync(NAMES_FILE) ? JSON.parse(fs.readFileSync(NAMES_FILE, 'utf8')) : {};
+  if (install) {
+    console.log(`Importing icons and names from ${install} (Factorio ${installVersion(install)})`);
+    names = Object.fromEntries(Object.entries(MOD_SETS).map(([mode, mods]) => [mode, readNames(install, mods)]));
+    fs.writeFileSync(NAMES_FILE, JSON.stringify(names, null, 1) + '\n');
+  } else {
+    console.log('No local Factorio installation found: reusing committed icons and names.');
+  }
+  const resolveIcon = iconResolver(ICONS_DIR, install);
+
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const summary = {};
   for (const mode of Object.keys(MOD_SETS)) {
     const { raw, version: dataVersion } = dumpRaw(CACHE_DIR, mode);
-    const dataset = buildDataset(raw, { mode, version: dataVersion });
+    const dataset = buildDataset(raw, { mode, version: dataVersion, names: names[mode], resolveIcon });
     fs.writeFileSync(path.join(DATA_DIR, `${mode}.json`), JSON.stringify(dataset));
     summary[mode] = {
       items: Object.keys(dataset.items).length,

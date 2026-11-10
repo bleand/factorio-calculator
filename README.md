@@ -4,6 +4,10 @@ A production calculator for [Factorio](https://www.factorio.com). Pick an item a
 (or minute) and it lists every step down to the raw materials: how much of each resource you need, which recipe and
 machine each step uses, and how many machines to build.
 
+- **Flow view**: the whole production chain drawn as a graph with the game's icons. Raw materials on the left, your
+  target on the right, animated lines showing which item moves where and at what rate. Drag to pan, scroll to zoom,
+  hover a step to trace what feeds it and what it feeds.
+- **Table view**: the same plan as a list, where you can change the recipe or machine of any step.
 - **Base game or Space Age**: toggle between the two recipe sets.
 - **Always current recipes**: the data is generated from Wube's official prototype definitions and refreshed
   automatically when a new stable Factorio version is released.
@@ -29,8 +33,12 @@ productivity (foundry, electromagnetic plant, biochamber) is applied.
 site/                    The deployed static site (this folder is what GitHub Pages serves)
   index.html
   styles.css
-  js/app.js              UI: state, item picker, result tables
+  js/app.js              UI: state, item picker, table view
   js/solver.js           Calculation engine (pure functions, also used by the tests)
+  js/graph.js            Builds the flow graph from a result and lays it out (pure functions)
+  js/flow.js             Flow view: renders the graph, pan/zoom, hover tracing
+  js/dom.js              DOM and icon helpers
+  icons/                 Item, fluid, recipe and machine icons imported from a Factorio installation
   data/vanilla.json      Generated dataset: base game
   data/space-age.json    Generated dataset: Space Age
   data/meta.json         Factorio version the data was generated from
@@ -39,8 +47,11 @@ tools/
   extract/harness.lua    Emulates Factorio's data stage inside the Lua VM
   extract/dump-raw.mjs   Runs the harness in a sandboxed VM, returns data.raw
   extract/build-dataset.mjs  Converts data.raw into the compact dataset the app loads
+  extract/assets.mjs     Imports icons and English names from a local Factorio installation
+  extract/names.json     Imported display names (committed, reused when no installation is available)
   serve.mjs              Zero-dependency static server for local development
 tests/solver.test.mjs    Solver tests against the real datasets
+tests/graph.test.mjs     Flow graph and layout tests
 .github/workflows/deploy.yml   Deploys to Pages and checks daily for new Factorio releases
 run.ps1 / Makefile       Operation scripts (Windows / macOS+Linux)
 ```
@@ -49,6 +60,7 @@ run.ps1 / Makefile       Operation scripts (Windows / macOS+Linux)
 
 - [Node.js](https://nodejs.org) 20 or newer
 - Git (only for `update-data`, which clones the Factorio data repository)
+- Optional: a Factorio installation, so `update-data` can refresh icons and names (see below)
 
 ## Setup
 
@@ -89,7 +101,12 @@ Then open http://localhost:5173. The datasets are committed, so nothing needs to
 
 ## Environment variables
 
-None are required. `PORT` optionally sets the port of the local server.
+None are required.
+
+| Variable | Purpose |
+|---|---|
+| `PORT` | Port of the local server (default 5173) |
+| `FACTORIO_PATH` | Factorio installation folder used by `update-data` for icons and names, if it is not in a standard Steam location |
 
 ## Deployment (GitHub Pages)
 
@@ -124,11 +141,38 @@ inside the checked-out data directory.
 
 Things the public data repository does not contain, and how they are handled:
 
-- **Graphics and sounds**: stubbed, since they are irrelevant to the calculator. This is also why there are no item
-  icons.
-- **Locale files**: display names are derived from internal ids (`iron-gear-wheel` → "Iron gear wheel"), so a few
-  names differ slightly from the in-game ones.
+- **Sprite layouts and sounds**: stubbed while running the data stage, since they are irrelevant to the calculator.
+- **Icons and locale files**: imported from a local Factorio installation (see below).
 - **Engine-generated recipes** (barrelling, recycling): not present, which is fine for a production calculator.
+
+### Icons and names
+
+`update-data` looks for a Factorio installation (standard Steam folders, `--factorio <path>` or `FACTORIO_PATH`).
+When it finds one it copies the icons referenced by the prototypes into `site/icons/` and writes the English names
+to `tools/extract/names.json`. Both are committed.
+
+The daily GitHub Actions run has no installation, so it reuses the committed copies. Recipes and numbers are always
+current, but an item added by a new Factorio version shows a letter tile and a name derived from its id (for example
+"Iron gear wheel" from `iron-gear-wheel`) until someone runs `update-data` locally and commits the result.
+
+Icon files contain the 64px sprite followed by its mipmaps (120×64), so the app crops each one to its left square.
+
+### Flow view (`site/js/graph.js`, `site/js/flow.js`)
+
+The graph has one node per production step, plus nodes for external inputs and surplus byproducts. An edge carries
+one item from the step that makes it to a step that uses it; when several steps make the same item, each consumer's
+demand is split between them in proportion to their output.
+
+Layout is a small layered (Sugiyama-style) algorithm written for this project, with no dependencies:
+
+1. Loops (Kovarex and similar) are detected and their back edges set aside.
+2. Each node's column is its longest distance to the target, so everything flows left to right.
+3. Edges that skip columns get invisible waypoints so they route around nodes instead of through them.
+4. Columns are reordered by neighbour position to reduce crossings, then nodes are pulled vertically towards their
+   neighbours while keeping a minimum spacing.
+
+Line thickness is on a log scale of the rate. Nodes are HTML and lines are SVG inside one container that is moved
+and scaled with a CSS transform for pan and zoom.
 
 Besides the crafting recipes, the dataset contains pseudo recipes so that everything is uniform for the solver:
 `mine:*` (resources, with mining time and drill speed), `pump:*` (offshore pumps), `collect:*` / `harvest:*`
@@ -156,4 +200,5 @@ Selections are stored in the browser's `localStorage`, separately for the base g
 
 ## Disclaimer
 
-Not affiliated with Wube Software. Factorio and its data are © Wube Software.
+Not affiliated with Wube Software. Factorio, its data, names and icons are © Wube Software; the icons in
+`site/icons/` are game assets included for identification only.

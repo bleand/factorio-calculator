@@ -181,7 +181,7 @@ if not ok then error(err, 0) end
 
 -- ------------------------------------------------------------------- JSON dump
 local SKIP = {
-  "graphics", "picture", "animation", "sound", "sprite", "icon", "circuit", "visualisation", "reflection",
+  "graphics", "picture", "animation", "sound", "sprite", "icon_", "icons_", "_icon", "circuit", "visualisation", "reflection",
   "autoplace", "fluid_box", "collision", "selection", "factoriopedia", "trigger", "light", "smoke", "shadow",
   "localised", "integration", "render", "stripes", "stages", "variations", "particle", "shift", "color",
 }

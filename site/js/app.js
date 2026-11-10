@@ -1,3 +1,5 @@
+import { h, icon } from './dom.js';
+import { renderFlow } from './flow.js';
 import { RAW, defaultMachine, defaultPrefs, defaultRecipe, machineFamilies, machinesFor, recipesFor, solve } from './solver.js';
 
 const STORAGE_KEY = 'factorio-calculator:v1';
@@ -11,6 +13,7 @@ const state = {
   mode: 'vanilla',
   rate: 1,
   unit: 's',
+  view: 'flow', // 'flow' | 'table'
   // per game mode: { target, recipes: {item: recipe|RAW}, machines: {recipe: machine}, prefs: {assembler, furnace, drill} }
   perMode: {},
   ...loadState(),
@@ -43,21 +46,6 @@ function modeState() {
 }
 
 // ------------------------------------------------------------------ helpers
-function h(tag, props = {}, ...children) {
-  const element = document.createElement(tag);
-  for (const [key, value] of Object.entries(props)) {
-    if (value === false || value == null) continue;
-    if (key === 'class') element.className = value;
-    else if (key.startsWith('on')) element.addEventListener(key.slice(2), value);
-    else element.setAttribute(key, value === true ? '' : value);
-  }
-  for (const child of children.flat()) {
-    if (child == null || child === false) continue;
-    element.append(child.nodeType ? child : document.createTextNode(child));
-  }
-  return element;
-}
-
 function formatNumber(value) {
   if (!Number.isFinite(value)) return '–';
   const abs = Math.abs(value);
@@ -156,7 +144,8 @@ function setupPicker() {
                   choose(id);
                 },
               },
-              itemName(id),
+              icon(data.items[id], 24),
+              h('span', {}, itemName(id)),
             ),
           )),
     );
@@ -200,10 +189,13 @@ function setupPicker() {
 }
 
 // ----------------------------------------------------------------- results
+const flowHost = h('div', { class: 'flow-host' });
+
 function flow(entry, minor, tag) {
   return h(
     'div',
     { class: `flow${minor ? ' minor' : ''}` },
+    icon(data.items[entry.item], 24),
     h('span', { class: 'name' }, itemName(entry.item), tag && h('span', { class: 'tag' }, tag)),
     h('span', { class: 'amount' }, formatRate(entry.rate)),
   );
@@ -237,7 +229,8 @@ function machineCell(step) {
   if (!step?.machine) return h('span', { class: 'dash' }, '–');
   const current = modeState();
   const candidates = machinesFor(data, step.recipe);
-  if (candidates.length === 1) return h('span', { class: 'static' }, data.machines[step.machine].name);
+  const machineIcon = icon(data.machines[step.machine], 24);
+  if (candidates.length === 1) return h('div', { class: 'with-icon' }, machineIcon, h('span', { class: 'static' }, data.machines[step.machine].name));
   const fallback = defaultMachine(data, step.recipe, current.prefs);
   const select = h(
     'select',
@@ -252,7 +245,7 @@ function machineCell(step) {
     },
     candidates.map((id) => h('option', { value: id, selected: id === step.machine }, data.machines[id].name)),
   );
-  return select;
+  return h('div', { class: 'with-icon' }, machineIcon, select);
 }
 
 function countCell(step) {
@@ -343,20 +336,50 @@ function renderResults() {
   );
   const stat = (value, label) => h('div', { class: 'stat' }, h('span', { class: 'value' }, value), h('span', { class: 'label' }, label));
 
+  const viewButton = (value, label) =>
+    h(
+      'button',
+      {
+        type: 'button',
+        role: 'radio',
+        'aria-checked': String(state.view === value),
+        onclick: () => {
+          state.view = value;
+          update();
+        },
+      },
+      label,
+    );
+  const viewToggle = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'View' }, viewButton('flow', 'Flow'), viewButton('table', 'Table'));
+
   const content = [
     h(
       'div',
       { class: 'summary' },
-      h('h2', {}, `${formatRate(state.rate)} ${itemName(current.target)}`),
+      h('h2', {}, icon(data.items[current.target], 36), `${formatRate(state.rate)} ${itemName(current.target)}`),
       h(
         'div',
         { class: 'stats' },
         stat(formatNumber(machineTotal), 'machines'),
         stat(formatPower(result.power), 'electric power'),
         stat(String(result.steps.length), 'steps'),
+        viewToggle,
       ),
     ),
     result.warnings.map((message) => h('p', { class: 'notice', role: 'alert' }, message)),
+  ];
+  if (state.view === 'flow') {
+    root.replaceChildren(...content.flat().filter(Boolean), flowHost);
+    renderFlow(flowHost, {
+      data,
+      result,
+      targets: { [current.target]: state.rate },
+      formatRate,
+      formatNumber,
+    });
+    return;
+  }
+  content.push(
     h(
       'section',
       { class: 'block' },
@@ -386,7 +409,7 @@ function renderResults() {
           h('table', { class: 'compact' }, h('tbody', {}, result.surplus.map((entry) => h('tr', {}, h('td', {}, flow(entry, false)))))),
         ),
       ),
-  ];
+  );
   root.replaceChildren(...content.flat().filter(Boolean));
 }
 

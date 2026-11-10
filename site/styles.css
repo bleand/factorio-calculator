@@ -539,3 +539,347 @@ td select.changed {
     gap: var(--space-lg);
   }
 }
+
+/* ------------------------------------------------------------------ icons */
+.icon {
+  display: inline-block;
+  flex: none;
+  overflow: hidden;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+/* icon files hold the 64px sprite followed by its mipmaps: show the first square */
+.icon img {
+  height: 100%;
+  width: auto;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.icon-missing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.summary h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stats {
+  align-items: center;
+}
+
+.combo-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.combo-list li span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flow {
+  align-items: center;
+}
+
+.flow .icon {
+  margin-right: -4px;
+}
+
+.flow .name {
+  flex: 1;
+}
+
+.with-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.with-icon select {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------- flow view */
+.main {
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-host {
+  flex: 1;
+  min-height: 420px;
+  display: flex;
+}
+
+.flow-view {
+  position: relative;
+  flex: 1;
+  display: block;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-dark);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 22px 22px;
+  overflow: hidden;
+}
+
+.flow-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.flow-viewport.dragging {
+  cursor: grabbing;
+}
+
+.flow-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+.flow-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edge {
+  fill: none;
+  stroke: #2b2b31;
+  stroke-linecap: round;
+  transition: stroke var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* dots travelling along each line, in the direction the items move */
+.edge-dots {
+  fill: none;
+  stroke: #73737f;
+  stroke-linecap: round;
+  stroke-dasharray: 0 16;
+  animation: flow-move 0.8s linear infinite;
+  transition: stroke var(--transition-fast), opacity var(--transition-fast);
+}
+
+@keyframes flow-move {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edge-dots {
+    animation: none;
+  }
+}
+
+.flow-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px 2px 4px;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: opacity var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.flow-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  background: var(--bg-medium);
+  transition: opacity var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.flow-node:hover {
+  background: var(--bg-input);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.flow-node.source,
+.flow-node.small {
+  background: var(--bg-card);
+}
+
+.flow-node.surplus,
+.flow-node.input {
+  border-style: dashed;
+}
+
+.flow-node.target {
+  border-color: var(--coral-primary);
+}
+
+.flow-node .body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flow-node .title {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flow-node .rates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.flow-node .rates span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.flow-node .rates .kind {
+  color: var(--text-tertiary);
+}
+
+.flow-node .machine {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.flow-node .machine strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-node .machine span:not(.tag):not(.icon) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flow-node .machine .tag {
+  margin-left: 0;
+}
+
+/* hovering a step: everything not connected to it fades back */
+.tracing .flow-node:not(.on),
+.tracing .flow-label:not(.on),
+.tracing .edge:not(.on),
+.tracing .edge-dots:not(.on) {
+  opacity: 0.22;
+}
+
+.tracing .edge.on {
+  stroke: #45454e;
+}
+
+.tracing .edge-dots.on {
+  stroke: #ffffff;
+}
+
+.tracing .flow-label.on {
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.flow-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-overlay);
+  box-shadow: var(--shadow-sm);
+}
+
+.flow-toolbar button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.flow-toolbar button.wide {
+  width: auto;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.flow-toolbar button:hover {
+  background: var(--bg-medium);
+  color: var(--text-primary);
+}
+
+.flow-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+@media (max-width: 860px) {
+  .flow-host {
+    height: 560px;
+    max-height: 75vh;
+    min-height: 360px;
+    flex: none;
+  }
+}

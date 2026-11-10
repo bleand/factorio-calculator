@@ -1,7 +1,7 @@
 // Turns the raw prototype dump into the compact dataset the web app loads.
 //
 // Dataset shape (all rates are per craft, the app turns them into per second):
-//   items    { id: { name, fluid?, hidden?, sort } }
+//   items    { id: { name, icon?, fluid?, hidden?, sort } }     icon is relative to site/icons
 //   recipes  { id: { name, kind, cats, time, in: {item: amount}, out: {item: [amount, productiveAmount]}, prod, maxProd } }
 //            kind is "craft" | "mine" | "pump" | "gather" | "launch"
 //   machines { id: { name, kind, speed, cats, slots, baseProd, power, burner, effects } }
@@ -53,7 +53,25 @@ function addProduct(out, product) {
   out[product.name] = [round(current[0] + amount), round(current[1] + productive)];
 }
 
-export function buildDataset(raw, { mode, version }) {
+export function buildDataset(raw, { mode, version, names = {}, resolveIcon = () => undefined }) {
+  // Real in-game names when a locale import is available, derived names otherwise.
+  const localised = (section, id) => (id ? names[section]?.[id] : undefined);
+  const itemName = (proto) =>
+    localised('item-name', proto.name) ??
+    localised('entity-name', proto.place_result) ??
+    localised('entity-name', proto.name) ??
+    localised('equipment-name', proto.place_as_equipment_result) ??
+    localised('equipment-name', proto.name) ??
+    humanize(proto.name);
+  const entityName = (id) => localised('entity-name', id) ?? localised('item-name', id) ?? humanize(id);
+  const iconOf = (proto) => resolveIcon(proto.icon ?? list(proto.icons)[0]?.icon);
+  const withIcon = (object, proto) => {
+    const icon = iconOf(proto);
+    if (icon) object.icon = icon;
+    return object;
+  };
+  const nameOf = (id) => items[id]?.name ?? humanize(id);
+
   const items = {};
   const recipes = {};
   const machines = {};
@@ -71,13 +89,16 @@ export function buildDataset(raw, { mode, version }) {
   for (const type of ITEM_TYPES) {
     for (const proto of Object.values(raw[type] ?? {})) {
       if (proto.parameter) continue;
-      items[proto.name] = { name: humanize(proto.name), sort: sortKey(proto, 'other') };
+      items[proto.name] = withIcon({ name: itemName(proto), sort: sortKey(proto, 'other') }, proto);
       if (proto.hidden) items[proto.name].hidden = true;
     }
   }
   for (const proto of Object.values(raw.fluid ?? {})) {
     if (proto.parameter) continue;
-    items[proto.name] = { name: humanize(proto.name), fluid: true, sort: sortKey(proto, 'fluid') };
+    items[proto.name] = withIcon(
+      { name: localised('fluid-name', proto.name) ?? humanize(proto.name), fluid: true, sort: sortKey(proto, 'fluid') },
+      proto,
+    );
     if (proto.hidden) items[proto.name].hidden = true;
   }
 
@@ -87,8 +108,10 @@ export function buildDataset(raw, { mode, version }) {
       (c) => c !== 'hand-crafting',
     );
     if (proto.hidden || proto.parameter || cats.includes('parameters') || cats.length === 0) continue;
+    const results = list(proto.results);
+    const mainProduct = proto.main_product || (results.length === 1 ? results[0].name : undefined);
     const recipe = {
-      name: humanize(proto.name),
+      name: localised('recipe-name', proto.name) ?? (mainProduct && items[mainProduct]?.name) ?? humanize(proto.name),
       kind: 'craft',
       cats,
       time: proto.energy_required ?? 0.5,
@@ -98,9 +121,9 @@ export function buildDataset(raw, { mode, version }) {
       maxProd: proto.maximum_productivity ?? 3,
     };
     for (const ingredient of list(proto.ingredients)) addTo(recipe.in, ingredient.name, ingredient.amount);
-    for (const product of list(proto.results)) addProduct(recipe.out, product);
+    for (const product of results) addProduct(recipe.out, product);
     if (Object.keys(recipe.out).length === 0) continue;
-    recipes[proto.name] = recipe;
+    recipes[proto.name] = withIcon(recipe, proto);
   }
 
   // Mining: one pseudo recipe per resource entity.
@@ -108,7 +131,7 @@ export function buildDataset(raw, { mode, version }) {
     const minable = proto.minable;
     if (!minable) continue;
     const recipe = {
-      name: `${humanize(proto.name)} (mining)`,
+      name: `${entityName(proto.name)} (mining)`,
       kind: 'mine',
       cats: [`mining:${proto.category ?? 'basic-solid'}`],
       time: minable.mining_time ?? 1,
@@ -131,7 +154,7 @@ export function buildDataset(raw, { mode, version }) {
     const fluids = new Set(Object.values(raw.tile ?? {}).map((t) => t.fluid).filter(Boolean));
     for (const fluid of [...fluids].sort()) {
       recipes[`pump:${fluid}`] = {
-        name: `${humanize(fluid)} (offshore pump)`,
+        name: `${nameOf(fluid)} (offshore pump)`,
         kind: 'pump',
         cats: ['pumping'],
         time: 1,
@@ -150,13 +173,13 @@ export function buildDataset(raw, { mode, version }) {
   };
   for (const proto of Object.values(raw['asteroid-chunk'] ?? {})) {
     if (proto.parameter || proto.hidden || !items[proto.name]) continue;
-    gather(`collect:${proto.name}`, `${humanize(proto.name)} (asteroid collector)`, { [proto.name]: [1, 0] });
+    gather(`collect:${proto.name}`, `${nameOf(proto.name)} (asteroid collector)`, { [proto.name]: [1, 0] });
   }
   for (const proto of Object.values(raw.plant ?? {})) {
     const out = {};
     for (const product of list(proto.minable?.results)) if (items[product.name]) addProduct(out, { ...product, ignored_by_productivity: 1e9 });
     if (proto.minable?.result && items[proto.minable.result]) out[proto.minable.result] = [proto.minable.count ?? 1, 0];
-    if (Object.keys(out).length > 0) gather(`harvest:${proto.name}`, `${humanize(proto.name)} (harvest)`, out);
+    if (Object.keys(out).length > 0) gather(`harvest:${proto.name}`, `${entityName(proto.name)} (harvest)`, out);
   }
 
   // Rocket launches that turn cargo into products (space science in the base game).
@@ -166,7 +189,7 @@ export function buildDataset(raw, { mode, version }) {
       const products = list(proto.rocket_launch_products);
       if (products.length === 0 || !silo) continue;
       const recipe = {
-        name: `${humanize(proto.name)} (rocket launch)`,
+        name: `${nameOf(proto.name)} (rocket launch)`,
         kind: 'launch',
         cats: ['rocket-launch'],
         time: 0,
@@ -185,14 +208,14 @@ export function buildDataset(raw, { mode, version }) {
     if (proto.effect_receiver?.uses_module_effects === false) return [];
     return list(proto.allowed_effects ?? ['consumption', 'speed', 'productivity', 'pollution', 'quality']);
   };
-  const common = (proto) => ({
-    name: humanize(proto.name),
+  const common = (proto) => withIcon({
+    name: entityName(proto.name),
     slots: proto.module_slots ?? 0,
     baseProd: proto.effect_receiver?.base_effect?.productivity ?? 0,
     power: parsePowerKw(proto.energy_usage),
     burner: proto.energy_source?.type === 'burner',
     effects: effectsOf(proto),
-  });
+  }, proto);
   for (const type of ['assembling-machine', 'furnace', 'rocket-silo']) {
     for (const proto of Object.values(raw[type] ?? {})) {
       if (proto.hidden) continue;
@@ -228,7 +251,8 @@ export function buildDataset(raw, { mode, version }) {
   for (const proto of Object.values(raw.module ?? {})) {
     if (proto.hidden) continue;
     modules[proto.name] = {
-      name: humanize(proto.name),
+      name: itemName(proto),
+      icon: iconOf(proto),
       category: proto.category,
       tier: proto.tier ?? 1,
       effect: proto.effect ?? {},
@@ -237,7 +261,8 @@ export function buildDataset(raw, { mode, version }) {
   for (const proto of Object.values(raw.beacon ?? {})) {
     if (proto.hidden) continue;
     beacons[proto.name] = {
-      name: humanize(proto.name),
+      name: entityName(proto.name),
+      icon: iconOf(proto),
       slots: proto.module_slots ?? 0,
       effectivity: proto.distribution_effectivity ?? 1,
       profile: list(proto.profile).slice(0, 16),
