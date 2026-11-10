@@ -1,0 +1,15 @@
+{
+  "name": "factorio-calculator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Factorio production calculator: pick an item and a rate, get every step down to raw materials.",
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "update-data": "node tools/update-data.mjs",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "fengari": "^0.1.4"
+  }
+}

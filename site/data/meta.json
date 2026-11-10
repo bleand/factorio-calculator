@@ -1,0 +1,17 @@
+{
+  "version": "2.1.24",
+  "source": "https://github.com/wube/factorio-data",
+  "updated": "2026-11-10",
+  "datasets": {
+    "vanilla": {
+      "items": 195,
+      "recipes": 196,
+      "machines": 14
+    },
+    "space-age": {
+      "items": 294,
+      "recipes": 336,
+      "machines": 22
+    }
+  }
+}
