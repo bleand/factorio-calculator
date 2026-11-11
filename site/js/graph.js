@@ -1,5 +1,5 @@
 // Turns a solver result into a flow graph and lays it out left to right
-// (raw materials on the left, the target on the right). Pure functions, no DOM.
+// by complexity level (raw materials in the first column). Pure functions, no DOM.
 
 /**
  * Nodes are production steps, external inputs and surplus outputs.
@@ -78,24 +78,19 @@ export function layoutGraph(graph, options = {}) {
   for (const node of graph.nodes) if (!visitState.has(node.id)) findBackEdges(node.id);
   const isBack = (from, to) => backPairs.has(`${from}>${to}`);
 
-  // 2. Layer = longest path to a sink, so the target ends up on the right.
+  // 2. Column = complexity level: raw materials (nothing feeding them) are in
+  //    column 0, and every other node sits one column right of its deepest input.
   const layer = new Map();
   const layerOf = (id) => {
     if (layer.has(id)) return layer.get(id);
     let value = 0;
-    for (const next of succ.get(id)) if (!isBack(id, next)) value = Math.max(value, layerOf(next) + 1);
+    for (const previous of pred.get(id)) if (!isBack(previous, id)) value = Math.max(value, layerOf(previous) + 1);
     layer.set(id, value);
     return value;
   };
   graph.nodes.forEach((node) => layerOf(node.id));
-  // surplus outputs sit right next to whatever produces them instead of at the far right
-  for (const node of graph.nodes) {
-    if (node.type !== 'surplus') continue;
-    const producers = [...pred.get(node.id)].map((id) => layer.get(id));
-    if (producers.length > 0) layer.set(node.id, Math.max(0, Math.min(...producers) - 1));
-  }
   const maxLayer = Math.max(0, ...layer.values());
-  const colOf = (id) => maxLayer - layer.get(id);
+  const colOf = (id) => layer.get(id);
 
   // 3. Columns, with dummy nodes where an edge skips columns.
   const columns = Array.from({ length: maxLayer + 1 }, () => []);

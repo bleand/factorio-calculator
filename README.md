@@ -4,8 +4,8 @@ A production calculator for [Factorio](https://www.factorio.com). Pick an item a
 (or minute) and it lists every step down to the raw materials: how much of each resource you need, which recipe and
 machine each step uses, and how many machines to build.
 
-- **Flow view**: the whole production chain drawn as a graph with the game's icons. Raw materials on the left, your
-  target on the right, animated lines showing which item moves where and at what rate. Drag to pan, scroll to zoom,
+- **Flow view**: the whole production chain drawn as a graph with the game's icons. Raw materials in the first column and
+  one column further right per level of complexity, animated lines showing which item moves where and at what rate. Drag to pan, scroll to zoom,
   hover a step to trace what feeds it and what it feeds.
 - **Table view**: the same plan as a list, where you can change the recipe or machine of any step.
 - **Base game or Space Age**: toggle between the two recipe sets.
@@ -166,7 +166,8 @@ demand is split between them in proportion to their output.
 Layout is a small layered (Sugiyama-style) algorithm written for this project, with no dependencies:
 
 1. Loops (Kovarex and similar) are detected and their back edges set aside.
-2. Each node's column is its longest distance to the target, so everything flows left to right.
+2. Columns are complexity levels: raw materials (nothing feeding them) are in the first column, and every other
+   step sits one column to the right of its deepest input. Iron ore → iron plate → gear wheel is three columns.
 3. Edges that skip columns get invisible waypoints so they route around nodes instead of through them.
 4. Columns are reordered by neighbour position to reduce crossings, then nodes are pulled vertically towards their
    neighbours while keeping a minimum spacing.

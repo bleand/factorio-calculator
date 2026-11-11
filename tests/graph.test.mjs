@@ -55,11 +55,21 @@ function assertValidLayout(layout, label) {
   }
 }
 
-test('layout flows left to right with the target in the last column', () => {
+test('columns are complexity levels: raw materials first, one column per level', () => {
   const { layout } = graphFor(vanilla, 'rocket-silo');
   assertValidLayout(layout, 'rocket-silo');
+  const col = new Map(layout.nodes.map((node) => [node.id, node.col]));
+  for (const id of ['mine:iron-ore', 'mine:copper-ore', 'mine:coal', 'mine:crude-oil', 'pump:water']) assert.equal(col.get(id), 0, id);
+  assert.equal(col.get('iron-plate'), 1);
+  assert.equal(col.get('iron-gear-wheel'), 2);
+  assert.equal(col.get('steel-plate'), 2);
+  // every node is exactly one column right of its deepest input
+  for (const node of layout.nodes) {
+    const inputs = layout.edges.filter((edge) => edge.to === node.id && !edge.back).map((edge) => col.get(edge.from));
+    assert.equal(node.col, inputs.length > 0 ? Math.max(...inputs) + 1 : 0, node.id);
+  }
   const target = layout.nodes.find((node) => node.target);
-  assert.equal(target.col, Math.max(...layout.nodes.map((node) => node.col)));
+  assert.equal(target.col, Math.max(...layout.nodes.filter((node) => node.type === 'step').map((node) => node.col)));
 });
 
 test('loops are laid out (Kovarex)', () => {
